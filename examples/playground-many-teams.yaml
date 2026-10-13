@@ -1,0 +1,197 @@
+# Migration Playground scenario: ten Ingresses from six teams behind one public ingress-nginx
+# class, plus two platform Ingresses on an internal class. A per-Ingress conversion would create
+# ten Gateways (ten LoadBalancers) where two controllers serve today. Includes a canary pair,
+# external auth, TLS per team (ReferenceGrants when the Gateway lives elsewhere), an IP allow-list
+# and ssl-passthrough. Use Design to compare shared, per-team and internal/external topologies.
+# All names are synthetic (example.test).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payments-web
+  namespace: team-payments
+  creationTimestamp: "2026-01-10T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [pay.example.test]
+      secretName: payments-tls
+  rules:
+    - host: pay.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: payments-web, port: {number: 80}}}}
+          - {path: "/checkout", pathType: Prefix, backend: {service: {name: payments-web, port: {number: 80}}}}
+          - {path: "/webhooks", pathType: Prefix, backend: {service: {name: payments-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: accounts-web
+  namespace: team-accounts
+  creationTimestamp: "2026-02-11T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [accounts.example.test]
+      secretName: accounts-tls
+  rules:
+    - host: accounts.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: accounts-web, port: {number: 80}}}}
+          - {path: "/login", pathType: Prefix, backend: {service: {name: accounts-web, port: {number: 80}}}}
+          - {path: "/profile", pathType: Prefix, backend: {service: {name: accounts-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: search-web
+  namespace: team-search
+  creationTimestamp: "2026-03-12T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [search.example.test]
+      secretName: search-tls
+  rules:
+    - host: search.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: search-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: media-web
+  namespace: team-media
+  creationTimestamp: "2026-04-13T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [media.example.test]
+      secretName: media-tls
+  rules:
+    - host: media.example.test
+      http:
+        paths:
+          - {path: "/images", pathType: Prefix, backend: {service: {name: media-web, port: {number: 80}}}}
+          - {path: "/video", pathType: Prefix, backend: {service: {name: media-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: docs-web
+  namespace: team-docs
+  creationTimestamp: "2026-05-14T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [docs.example.test]
+      secretName: docs-tls
+  rules:
+    - host: docs.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: docs-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: status-web
+  namespace: team-status
+  creationTimestamp: "2026-06-15T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "8m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [status.example.test]
+      secretName: status-tls
+  rules:
+    - host: status.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: status-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: payments-web-canary
+  namespace: team-payments
+  creationTimestamp: "2026-08-01T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: pay.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: payments-web-v2, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: accounts-sso
+  namespace: team-accounts
+  creationTimestamp: "2026-08-02T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://auth.example.test/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://auth.example.test/oauth2/start"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: accounts.example.test
+      http:
+        paths:
+          - {path: "/sso", pathType: Prefix, backend: {service: {name: accounts-sso, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ops-grafana
+  namespace: platform-ops
+  creationTimestamp: "2026-03-01T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8"
+spec:
+  ingressClassName: nginx-internal
+  rules:
+    - host: grafana.internal.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: grafana, port: {number: 3000}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ops-argocd
+  namespace: platform-ops
+  creationTimestamp: "2026-03-02T10:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+spec:
+  ingressClassName: nginx-internal
+  rules:
+    - host: argocd.internal.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: argocd-server, port: {number: 443}}}}

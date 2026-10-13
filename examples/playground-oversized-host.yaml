@@ -1,0 +1,59 @@
+# Migration Playground scenario: one Ingress with 36 paths on one host (the HTTPRoute limit is 16
+# rules) and a Content-Security-Policy assembled from NGINX variables whose expanded value is close
+# to the 4096-character header limit. All names are synthetic (example.test).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal
+  namespace: portal
+  creationTimestamp: "2026-01-10T08:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippet: |
+      set $csp_scripts "script-src 'self' https://cdn000.example.test https://cdn001.example.test https://cdn002.example.test https://cdn003.example.test https://cdn004.example.test https://cdn005.example.test https://cdn006.example.test https://cdn007.example.test https://cdn008.example.test https://cdn009.example.test https://cdn010.example.test https://cdn011.example.test https://cdn012.example.test https://cdn013.example.test https://cdn014.example.test https://cdn015.example.test https://cdn016.example.test https://cdn017.example.test https://cdn018.example.test https://cdn019.example.test https://cdn020.example.test https://cdn021.example.test https://cdn022.example.test https://cdn023.example.test https://cdn024.example.test https://cdn025.example.test https://cdn026.example.test https://cdn027.example.test https://cdn028.example.test https://cdn029.example.test https://cdn030.example.test https://cdn031.example.test https://cdn032.example.test https://cdn033.example.test https://cdn034.example.test https://cdn035.example.test https://cdn036.example.test https://cdn037.example.test https://cdn038.example.test https://cdn039.example.test https://cdn040.example.test https://cdn041.example.test https://cdn042.example.test https://cdn043.example.test https://cdn044.example.test https://cdn045.example.test https://cdn046.example.test https://cdn047.example.test https://cdn048.example.test https://cdn049.example.test https://cdn050.example.test https://cdn051.example.test https://cdn052.example.test https://cdn053.example.test https://cdn054.example.test https://cdn055.example.test https://cdn056.example.test https://cdn057.example.test https://cdn058.example.test https://cdn059.example.test https://cdn060.example.test https://cdn061.example.test https://cdn062.example.test https://cdn063.example.test https://cdn064.example.test https://cdn065.example.test";
+      set $csp_images "img-src 'self' https://cdn000.example.test https://cdn001.example.test https://cdn002.example.test https://cdn003.example.test https://cdn004.example.test https://cdn005.example.test https://cdn006.example.test https://cdn007.example.test https://cdn008.example.test https://cdn009.example.test https://cdn010.example.test https://cdn011.example.test https://cdn012.example.test https://cdn013.example.test https://cdn014.example.test https://cdn015.example.test https://cdn016.example.test https://cdn017.example.test https://cdn018.example.test https://cdn019.example.test https://cdn020.example.test https://cdn021.example.test https://cdn022.example.test https://cdn023.example.test https://cdn024.example.test https://cdn025.example.test https://cdn026.example.test https://cdn027.example.test https://cdn028.example.test https://cdn029.example.test https://cdn030.example.test https://cdn031.example.test https://cdn032.example.test https://cdn033.example.test https://cdn034.example.test https://cdn035.example.test https://cdn036.example.test https://cdn037.example.test https://cdn038.example.test https://cdn039.example.test https://cdn040.example.test https://cdn041.example.test https://cdn042.example.test https://cdn043.example.test https://cdn044.example.test https://cdn045.example.test https://cdn046.example.test https://cdn047.example.test https://cdn048.example.test https://cdn049.example.test https://cdn050.example.test https://cdn051.example.test https://cdn052.example.test https://cdn053.example.test https://cdn054.example.test https://cdn055.example.test https://cdn056.example.test https://cdn057.example.test https://cdn058.example.test https://cdn059.example.test https://cdn060.example.test https://cdn061.example.test https://cdn062.example.test https://cdn063.example.test https://cdn064.example.test https://cdn065.example.test";
+      add_header Content-Security-Policy "default-src 'self'; ${csp_scripts}; ${csp_images}" always;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [portal.example.test]
+      secretName: portal-tls
+  rules:
+    - host: portal.example.test
+      http:
+        paths:
+          - {path: "/svc/00", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/01", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/02", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/03", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/04", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/05", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/06", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/07", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/08", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/09", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/10", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/11", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/12", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/13", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/14", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/15", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/16", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/17", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/18", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/19", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/20", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/21", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/22", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/23", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/24", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/25", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/26", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/27", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/28", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/29", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/30", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/31", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/32", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/33", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/34", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}
+          - {path: "/svc/35", pathType: Prefix, backend: {service: {name: portal, port: {number: 80}}}}

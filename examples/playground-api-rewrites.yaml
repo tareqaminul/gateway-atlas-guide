@@ -1,0 +1,84 @@
+# Migration Playground scenario: an API edge with capture-group rewrites, regex paths, CORS
+# with credentials and an explicit max-age, a configuration-snippet that sets headers, a gRPC
+# backend, and invalid/valid timeout values. All names are synthetic (example.test).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-v1
+  namespace: api-edge
+  creationTimestamp: "2026-02-01T09:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://app.example.test, https://admin.example.test"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-max-age: "600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "5"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120s"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api.example.test]
+      secretName: api-tls
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - {path: "/v1(/|$)(.*)", pathType: ImplementationSpecific, backend: {service: {name: api-v1, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-v2
+  namespace: api-edge
+  creationTimestamp: "2026-02-15T09:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-API-Version: 2";
+      add_header X-Request-Id $request_id always;
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - {path: "/v2/(users|orders)/([0-9]+)", pathType: ImplementationSpecific, backend: {service: {name: api-v2, port: {number: 8080}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-grpc
+  namespace: api-edge
+  creationTimestamp: "2026-03-01T09:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [grpc.example.test]
+      secretName: grpc-tls
+  rules:
+    - host: grpc.example.test
+      http:
+        paths:
+          - {path: "/inventory.v1.Inventory", pathType: Prefix, backend: {service: {name: inventory-grpc, port: {number: 9090}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-docs
+  namespace: api-edge
+  creationTimestamp: "2026-03-05T09:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/app-root: "/swagger"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - {path: "/swagger", pathType: Prefix, backend: {service: {name: api-docs, port: {number: 80}}}}
+          - {path: "/api-docs", pathType: Prefix, backend: {service: {name: api-docs, port: {number: 80}}}}

@@ -1,0 +1,49 @@
+name: Bug report
+description: Something in Gateway Atlas is wrong or broken
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing Gateway Atlas. **Do not paste kubeconfig credentials, tokens, certificates, Secret values or private manifests.** Use a small synthetic example instead.
+  - type: input
+    id: release
+    attributes:
+      label: Atlas release
+      description: From Help → About
+      placeholder: "2.2.1"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and browser
+      placeholder: "macOS 15 Apple Silicon, Docker Desktop 4.x, Chrome 141"
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Import, Live cluster, Canvas, Inspector / search / diagnostics, Migration Playground — Discover, Migration Playground — Design, Legacy draft, CRD explorer, Command line, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Import → Bundled example → …\n2. …"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Minimal synthetic manifest (optional)
+      description: Use example.test names and no real hosts, IPs or Secret data.
+      render: yaml

@@ -1,0 +1,116 @@
+# Migration Playground scenario: two shared hosts behind one ingress-nginx controller.
+# Shows host merging (oldest Ingress owns the server-snippet), a merged host over the 16-rule
+# HTTPRoute limit with a duplicate path, host-wide regex, a damaged CSP, CORS, an invalid timeout,
+# no-op annotations, backend TLS, HTTP to port 443, and a TLS host for ReferenceGrant planning.
+# All names are synthetic (example.test).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: storefront
+  namespace: shop-web
+  creationTimestamp: "2026-05-29T09:27:07Z"
+  annotations:
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "http://localhost:3000, https://web.example.test"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60s"
+    nginx.ingress.kubernetes.io/add-base-url: "true"
+    nginx.ingress.kubernetes.io/server-snippet: |
+      proxy_hide_header X-Powered-By;
+      set $cache_control "public, max-age=0";
+      if ($request_uri ~* \.(css|js)$) {
+        set $cache_control "public, max-age=2592000, immutable";
+      }
+      add_header Cache-Control $cache_control always;
+      add_header X-Frame-Options "DENY";
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://.cdn.example.test [www.tracker.example.test](https://www.tracker.example.test)" always;
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [web.example.test]
+      secretName: web-tls
+  rules:
+    - host: web.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: storefront, port: {number: 80}}}}
+          - {path: "/assets", pathType: Prefix, backend: {service: {name: storefront, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: partner-web
+  namespace: shop-b2b
+  creationTimestamp: "2026-06-10T12:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/server-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN";
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: web.example.test
+      http:
+        paths:
+          - {path: "/partner", pathType: Prefix, backend: {service: {name: partner-web, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: catalog-api
+  namespace: shop-api
+  creationTimestamp: "2026-04-01T08:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - {path: "/api/v1/catalog", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/items", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/prices", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/stock", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/search", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/brands", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/categories", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/reviews", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/images", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+          - {path: "/api/v1/health", pathType: Prefix, backend: {service: {name: catalog, port: {number: 8443}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orders-api
+  namespace: shop-api
+  creationTimestamp: "2026-04-02T08:00:00Z"
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: api.example.test
+      http:
+        paths:
+          - {path: "/orders(/|$)(.*)", pathType: ImplementationSpecific, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/health", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/actuator/health", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/carts", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/checkout", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/payments", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/refunds", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+          - {path: "/api/v1/invoices", pathType: Prefix, backend: {service: {name: orders, port: {number: 80}}}}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: legacy-admin
+  namespace: shop-ops
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: admin.example.test
+      http:
+        paths:
+          - {path: "/", pathType: Prefix, backend: {service: {name: legacy-admin, port: {number: 443}}}}
