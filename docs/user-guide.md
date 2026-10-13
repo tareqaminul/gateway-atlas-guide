@@ -19,11 +19,11 @@ This guide takes you from a first run to exploring your own configuration, readi
 You need Docker: Docker Desktop on macOS, or Docker Engine on x86-64 Linux. The image is multi-architecture, so Docker picks the right variant automatically.
 
 ```bash
-docker pull ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1
+docker pull ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2
 ```
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1 serve --addr 0.0.0.0:8080
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2 serve --addr 0.0.0.0:8080
 ```
 
 Open <http://127.0.0.1:8080>. Stop Atlas with `Ctrl+C` in that terminal.
@@ -97,7 +97,7 @@ Clusters reached through a cloud CLI login, such as AKS, EKS or GKE `exec` plugi
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 \
   --mount type=bind,source="$HOME/.config/gateway-atlas",target=/home/nonroot/.kube,readonly \
-  ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1 serve --addr 0.0.0.0:8080 --enable-live
+  ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2 serve --addr 0.0.0.0:8080 --enable-live
 ```
 
 The directory must contain a file named `config`. `--mount` fails clearly if the source is missing, whereas `-v` would silently create an empty directory.
@@ -233,7 +233,7 @@ The catalog schemas are bundled with Atlas, so this works offline.
 The same binary has a command-line interface. With the container, mount your files read-only:
 
 ```bash
-docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1 validate /work/examples/missing-service.yaml
+docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2 validate /work/examples/missing-service.yaml
 ```
 
 | Command | Purpose |

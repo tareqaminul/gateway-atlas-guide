@@ -2,7 +2,7 @@
 
 **Gateway Atlas maps Kubernetes traffic.** Load your manifests, or read a cluster read-only, and see how every Gateway, route, policy, certificate and Service relates to the others. It flags what looks wrong and helps you plan the move from ingress-nginx to Gateway API and NGINX Gateway Fabric.
 
-This repository is for **users and reviewers**. It has the user guide, an architecture overview and example manifests, and it is where you report issues and feedback. Gateway Atlas is in an open **preview**: the current release is **2.2.1**.
+This repository is for **users and reviewers**. It has the user guide, an architecture overview and example manifests, and it is where you report issues and feedback. Gateway Atlas is in an open **preview**: the current release is **2.2.2**.
 
 ## Why Gateway Atlas
 
@@ -23,7 +23,7 @@ Gateway Atlas answers these by building one relationship graph from your resourc
   - **Discover** shows what your Ingresses really do: hosts shared between Ingresses, snippets, CORS, regex, rewrites and limits.
   - **Design** lets you choose the Gateway topology and checks its load-balancer footprint, listeners, namespaces and certificates.
   - It ends with a design record, a decision list and a figurative platform skeleton.
-- **Explore Supported CRDs:** a floating `kubectl explain`-style tree of about 40 bundled CRD schemas (Gateway API, NGF, NGINX Ingress Controller, F5 CIS and more), available offline.
+- **Explore Supported CRDs:** a floating `kubectl explain`-style tree of 41 bundled CRD schemas (Gateway API, NGF, NGINX Ingress Controller, F5 CIS and more), available offline.
 - **Covers:** Kubernetes and Gateway API, NGINX Gateway Fabric, NGINX Ingress Controller and App Protect, F5 BIG-IP Container Ingress Services and IPAM, BIG-IP Next for Kubernetes, and the Gateway API Inference Extension.
 
 ## Design principles
@@ -38,11 +38,11 @@ Gateway Atlas answers these by building one relationship graph from your resourc
 You need Docker (Docker Desktop on macOS or Docker Engine on Linux). One image runs on Apple Silicon (`linux/arm64`) and x86-64 Linux (`linux/amd64`).
 
 ```bash
-docker pull ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1
+docker pull ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2
 ```
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.1 serve --addr 0.0.0.0:8080
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2 serve --addr 0.0.0.0:8080
 ```
 
 Open <http://127.0.0.1:8080>, choose **Import → Bundled example**, and explore. Then follow the [user guide](docs/user-guide.md).
