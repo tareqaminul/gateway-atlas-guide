@@ -301,6 +301,31 @@ To start:
 
 ![The Migration Playground before discovery](../images/playground-start.png)
 
+### The bigger picture: three Gateway patterns
+
+Before you design anything, decide what a Gateway is *for*. In NGINX Gateway Fabric, each new Gateway gets its own data plane and Service (for example, a LoadBalancer). So the number of Gateways is a decision about boundaries and cost; it should not follow from how many Ingresses you happen to have.
+
+![Three Gateway patterns, shared, boundary-specific and dedicated, and where Discover, Design and the legacy Draft fit](../images/gateway-patterns.svg)
+
+| Pattern | Use it when | Watch out for |
+| --- | --- | --- |
+| **A · Shared Gateway** | Most apps share exposure, TLS and security posture, and teams own their own routes. | A shared blast radius. Govern hostname ownership, quotas and policy conflicts. |
+| **B · Boundary-specific** | You need to separate public and internal traffic, prod and non-prod, or compliance zones. | More listeners, addresses and operations, and teams still share each Gateway. |
+| **C · Dedicated Gateway** | A tenant or critical app needs its own TLS, load balancer, release cadence or isolation. | Higher cost and sprawl. Verify real data-plane isolation, not just separate objects. |
+
+**Shared** and **Dedicated** are the two extremes, and most platforms land on A or B. Keep C for the tenants that truly need it. The rule of thumb: **add a Gateway only for a meaningful trust, exposure or operational boundary.**
+
+How the Playground fits:
+
+- **1 · Discover** shows how hosts, snippets and TLS are shared today. That tells you where the real boundaries are before you pick a pattern.
+- **2 · Design** lets you build any of the three:
+  - one Gateway for every host is pattern A;
+  - a public and an internal Gateway is pattern B (the example in [10.2](#102-design));
+  - a Gateway per team is pattern C.
+
+  Its checks focus on the **ownership model** in the middle: who owns each host, route namespace, listener and certificate. It also shows the load balancers and decisions that each extra Gateway brings.
+- **Draft (legacy per-Ingress)** maps every Ingress to its own Gateway. That is a lift-and-shift past the dedicated extreme: 40 Ingresses would become 40 data planes and load balancers, where one controller served them before. It is useful for exploring annotation mappings, but it is rarely the right design.
+
 ### 10.1 Discover
 
 Select **Run Discovery**. **Download Report** saves everything below as one report.
@@ -312,7 +337,7 @@ Select **Run Discovery**. **Download Report** saves everything below as one repo
 - ingress classes;
 - findings by severity (Critical, High, Medium, Info).
 
-Many Ingresses normally share one controller's data plane and load balancer. In NGINX Gateway Fabric, **each Gateway gets its own data plane and LoadBalancer Service**, so the number of Gateways, not Ingresses, sets the number of load balancers.
+Many Ingresses normally share one controller's data plane and load balancer. In NGINX Gateway Fabric, **each new Gateway gets its own data plane and Service (for example, a LoadBalancer)**, so the number of Gateways, not Ingresses, sets the number of load balancers.
 
 ![Discover summary and Ingress table](../images/discover-summary.png)
 
@@ -356,7 +381,7 @@ Click a resource name to jump to its row.
 
 ### 10.2 Design
 
-Open **2 · Design**. Atlas does **not** preselect a topology.
+Open **2 · Design**. Atlas does **not** preselect a topology; any of the [three patterns](#the-bigger-picture-three-gateway-patterns) can be built here.
 
 1. **Add Gateway** for each Gateway you intend to run. Give it:
    - a **name** and **namespace**. `default` is fine, but a dedicated namespace such as `gateway-infra` keeps Gateways, RBAC and certificates apart from applications;
@@ -375,6 +400,8 @@ Open **2 · Design**. Atlas does **not** preselect a topology.
 4. Select **Check Design**.
 
 ![Two Gateways, public-edge and internal-tools, with hosts attached](../images/design-gateways.png)
+
+This example, a `public-edge` and an `internal-tools` Gateway, is pattern **B · Boundary-specific**.
 
 The **design check** shows:
 - the Gateway and load-balancer count, compared with today;
@@ -405,7 +432,7 @@ The sticky bar keeps **Check Design**, **Download Report** and the **Jump to** l
 
 ### 10.3 Draft (legacy per-Ingress)
 
-The legacy converter maps each Ingress to its own Gateway and HTTPRoutes, without a topology decision. Use it to explore mappings, not as a migration design. It understands both community ingress-nginx and **F5 NGINX Ingress Controller** annotations.
+The legacy converter maps each Ingress to its own Gateway and HTTPRoutes, without a topology decision. This is the lift-and-shift extreme described in [the bigger picture](#the-bigger-picture-three-gateway-patterns): one data plane and load balancer per Ingress. Use it to explore mappings, not as a migration design. It understands both community ingress-nginx and **F5 NGINX Ingress Controller** annotations.
 
 1. **Setup.**
    - **Source snapshot:** the Ingresses in the current import.

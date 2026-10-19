@@ -95,6 +95,8 @@ Load **Playground · retail platform (real-world case)**, select **Migration Pla
 - how shared hosts merge today;
 - findings that say what happens **today**, what **Gateway API / NGF** offers, and what you need to **decide**.
 
+Not sure how many Gateways you need? Read [three Gateway patterns](user-guide.md#the-bigger-picture-three-gateway-patterns) first.
+
 Then open **2 · Design**:
 1. **Add Gateway** for each Gateway you want.
 2. Attach hosts to the Gateways.
