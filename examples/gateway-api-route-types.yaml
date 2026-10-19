@@ -1,0 +1,1371 @@
+# Gateway API - Various Route Types: NGINX Gateway Fabric with HTTPRoute, GRPCRoute, TLSRoute, TCPRoute and
+# UDPRoute. Also covers:
+# - a shared multi-team Gateway with namespace selectors and ReferenceGrants;
+# - the NGF policy and filter set;
+# - weights, header and query matches, mirroring and redirects.
+# Every relationship resolves.
+# Synthetic: example.com hosts, registry.example.com images, RFC 5737 addresses; Secrets carry no data.
+# One GatewayClass for NGINX Gateway Fabric, configured by an NginxProxy (parametersRef).
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: nginx
+spec:
+  controllerName: gateway.nginx.org/nginx-gateway-controller
+  parametersRef:
+    group: gateway.nginx.org
+    kind: NginxProxy
+    name: proxy-config
+    namespace: nginx-gateway
+---
+# hello.example.com: the smallest path, Gateway, HTTPRoute, Service.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hello
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: hello-gateway
+  namespace: hello
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+    hostname: hello.example.com
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hello
+  namespace: hello
+spec:
+  parentRefs:
+  - name: hello-gateway
+  hostnames:
+  - hello.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: hello-web
+      port: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-web
+  namespace: hello
+spec:
+  selector:
+    app: hello-web
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-web
+  namespace: hello
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: hello-web
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/hello/hello-web:1.0.0
+        ports:
+        - containerPort: 8080
+---
+# A platform-owned shared Gateway: the HTTP listener only redirects to HTTPS; the HTTPS wildcard
+# listener admits namespaces labelled gateway-access=shared and uses a certificate from namespace
+# certs through a ReferenceGrant. Two teams share www.example.com by path; cross-namespace backends
+# are granted.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: infra-gateways
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: certs
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: storefront
+  labels:
+    gateway-access: shared
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: checkout
+  labels:
+    gateway-access: shared
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: search
+  labels:
+    gateway-access: shared
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: partners
+  labels:
+    gateway-access: shared
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: shared-edge
+  namespace: infra-gateways
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+    allowedRoutes:
+      namespaces:
+        from: Same
+  - name: https-wildcard
+    port: 443
+    protocol: HTTPS
+    hostname: '*.example.com'
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - name: wildcard-example-com
+        namespace: certs
+    allowedRoutes:
+      namespaces:
+        from: Selector
+        selector:
+          matchLabels:
+            gateway-access: shared
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: gateways-read-wildcard
+  namespace: certs
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    namespace: infra-gateways
+  to:
+  - group: ''
+    kind: Secret
+    name: wildcard-example-com
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: wildcard-example-com
+  namespace: certs
+type: kubernetes.io/tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-to-https
+  namespace: infra-gateways
+spec:
+  parentRefs:
+  - name: shared-edge
+    sectionName: http
+  hostnames: []
+  rules:
+  - filters:
+    - type: RequestRedirect
+      requestRedirect:
+        scheme: https
+        statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: storefront
+  namespace: storefront
+spec:
+  parentRefs:
+  - name: shared-edge
+    namespace: infra-gateways
+    sectionName: https-wildcard
+  hostnames:
+  - www.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: storefront-web
+      port: 80
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /search
+    backendRefs:
+    - name: search-api
+      port: 8080
+      namespace: search
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: checkout
+  namespace: checkout
+spec:
+  parentRefs:
+  - name: shared-edge
+    namespace: infra-gateways
+    sectionName: https-wildcard
+  hostnames:
+  - www.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /checkout
+    - path:
+        type: PathPrefix
+        value: /cart
+    backendRefs:
+    - name: checkout-api
+      port: 8080
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        set:
+        - name: X-Team
+          value: checkout
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /payments
+    backendRefs:
+    - name: payments-gateway
+      port: 443
+      namespace: payments-external
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: search-direct
+  namespace: search
+spec:
+  parentRefs:
+  - name: shared-edge
+    namespace: infra-gateways
+    sectionName: https-wildcard
+  hostnames:
+  - search.example.com
+  rules:
+  - backendRefs:
+    - name: search-api
+      port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: partners
+  namespace: partners
+spec:
+  parentRefs:
+  - name: shared-edge
+    namespace: infra-gateways
+    sectionName: https-wildcard
+  hostnames:
+  - partners.example.com
+  rules:
+  - backendRefs:
+    - name: partner-portal
+      port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: storefront-to-search
+  namespace: search
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: storefront
+  to:
+  - group: ''
+    kind: Service
+    name: search-api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: storefront-web
+  namespace: storefront
+spec:
+  selector:
+    app: storefront-web
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storefront-web
+  namespace: storefront
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: storefront-web
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/storefront/storefront-web:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-api
+  namespace: checkout
+spec:
+  selector:
+    app: checkout-api
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-api
+  namespace: checkout
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: checkout-api
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/checkout/checkout-api:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: search-api
+  namespace: search
+spec:
+  selector:
+    app: search-api
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-api
+  namespace: search
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: search-api
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/search/search-api:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: partner-portal
+  namespace: partners
+spec:
+  selector:
+    app: partner-portal
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: partner-portal
+  namespace: partners
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: partner-portal
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/partners/partner-portal:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: payments-external
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: checkout-to-payments
+  namespace: payments-external
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: checkout
+  to:
+  - group: ''
+    kind: Service
+    name: payments-gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payments-gateway
+  namespace: payments-external
+spec:
+  selector:
+    app: payments-gateway
+  ports:
+  - name: http
+    port: 443
+    targetPort: 8443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payments-gateway
+  namespace: payments-external
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: payments-gateway
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/payments-external/payments-gateway:1.0.0
+        ports:
+        - containerPort: 8443
+---
+# api.example.com: NGINX Gateway Fabric 2.8.0 policies and filters on one route. Policy specs are
+# minimal: they show attachment, not tuning.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: nginx-gateway
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: api
+---
+apiVersion: gateway.nginx.org/v1alpha2
+kind: NginxProxy
+metadata:
+  name: proxy-config
+  namespace: nginx-gateway
+spec:
+  ipFamily: dual
+  serverTokens: 'off'
+  telemetry:
+    exporter:
+      endpoint: otel-collector.observability.svc:4317
+    serviceName: api-edge
+  rewriteClientIP:
+    mode: ProxyProtocol
+    trustedAddresses:
+    - type: CIDR
+      value: 198.51.100.0/24
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: api-gateway
+  namespace: api
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    hostname: api.example.com
+    tls:
+      certificateRefs:
+      - name: api-tls
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-tls
+  namespace: api
+type: kubernetes.io/tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: public-api
+  namespace: api
+spec:
+  parentRefs:
+  - name: api-gateway
+  hostnames:
+  - api.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /v1/orders
+    backendRefs:
+    - name: orders
+      port: 8080
+    filters:
+    - type: ExtensionRef
+      extensionRef:
+        group: gateway.nginx.org
+        kind: SnippetsFilter
+        name: orders-buffering
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /v1/admin
+    backendRefs:
+    - name: admin
+      port: 8080
+    filters:
+    - type: ExtensionRef
+      extensionRef:
+        group: gateway.nginx.org
+        kind: AuthenticationFilter
+        name: admin-basic
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /v1/legacy
+    backendRefs:
+    - name: legacy-billing
+      port: 8443
+    filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /billing
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: api-body-limits
+  namespace: api
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: api-gateway
+  body:
+    maxSize: 10m
+    timeout: 30s
+  keepAlive:
+    requests: 100
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ProxySettingsPolicy
+metadata:
+  name: orders-timeouts
+  namespace: api
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: public-api
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: UpstreamSettingsPolicy
+metadata:
+  name: orders-upstream
+  namespace: api
+spec:
+  targetRefs:
+  - group: core
+    kind: Service
+    name: orders
+  keepAlive:
+    connections: 32
+  loadBalancingMethod: least_conn
+  zoneSize: 1m
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: RateLimitPolicy
+metadata:
+  name: api-rate-limit
+  namespace: api
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: public-api
+---
+apiVersion: gateway.nginx.org/v1alpha2
+kind: ObservabilityPolicy
+metadata:
+  name: api-tracing
+  namespace: api
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: public-api
+  tracing:
+    strategy: ratio
+    ratio: 10
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: admin-allow-office
+  namespace: api
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: public-api
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: SnippetsFilter
+metadata:
+  name: orders-buffering
+  namespace: api
+spec:
+  snippets:
+  - context: http.server.location
+    value: proxy_buffering off;
+---
+apiVersion: gateway.nginx.org/v1alpha1
+kind: AuthenticationFilter
+metadata:
+  name: admin-basic
+  namespace: api
+spec:
+  type: Basic
+  basic:
+    secretRef:
+      name: admin-htpasswd
+    realm: Admin
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: admin-htpasswd
+  namespace: api
+type: Opaque
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: BackendTLSPolicy
+metadata:
+  name: legacy-billing-tls
+  namespace: api
+spec:
+  targetRefs:
+  - group: ''
+    kind: Service
+    name: legacy-billing
+  validation:
+    caCertificateRefs:
+    - group: ''
+      kind: ConfigMap
+      name: billing-ca
+    hostname: billing.internal.example.test
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: billing-ca
+  namespace: api
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    SYNTHETIC-PLACEHOLDER
+    -----END CERTIFICATE-----
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+  namespace: api
+spec:
+  selector:
+    app: orders
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: orders
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/api/orders:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: api
+spec:
+  selector:
+    app: admin
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: admin
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/api/admin:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: legacy-billing
+  namespace: api
+spec:
+  selector:
+    app: legacy-billing
+  ports:
+  - name: http
+    port: 8443
+    targetPort: 8443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-billing
+  namespace: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: legacy-billing
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/api/legacy-billing:1.0.0
+        ports:
+        - containerPort: 8443
+---
+# releases.example.com: progressive delivery, 90/10 blue/green, a header-forced canary, a query
+# A/B experiment, a mirror to a shadow Service, and a maintenance redirect on a second route.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: releases
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: releases-gw
+  namespace: releases
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: checkout-progressive
+  namespace: releases
+spec:
+  parentRefs:
+  - name: releases-gw
+  hostnames:
+  - releases.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+      headers:
+      - name: x-canary
+        value: always
+    backendRefs:
+    - name: checkout-green
+      port: 80
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+      queryParams:
+      - name: variant
+        value: b
+    backendRefs:
+    - name: checkout-experiment-b
+      port: 80
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: checkout-blue
+      port: 80
+      weight: 90
+    - name: checkout-green
+      port: 80
+      weight: 10
+    filters:
+    - type: RequestMirror
+      requestMirror:
+        backendRef:
+          name: checkout-shadow
+          port: 80
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: checkout-maintenance
+  namespace: releases
+spec:
+  parentRefs:
+  - name: releases-gw
+  hostnames:
+  - releases.example.com
+  rules:
+  - matches:
+    - path:
+        type: Exact
+        value: /maintenance
+    filters:
+    - type: RequestRedirect
+      requestRedirect:
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /status
+        statusCode: 302
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-blue
+  namespace: releases
+spec:
+  selector:
+    app: checkout
+    track: blue
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-blue
+  namespace: releases
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: checkout
+      track: blue
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/checkout/checkout-blue:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-green
+  namespace: releases
+spec:
+  selector:
+    app: checkout
+    track: green
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-green
+  namespace: releases
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: checkout
+      track: green
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/checkout/checkout-green:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-experiment-b
+  namespace: releases
+spec:
+  selector:
+    app: checkout
+    track: experiment-b
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-experiment-b
+  namespace: releases
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: checkout
+      track: experiment-b
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/checkout/checkout-experiment-b:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: checkout-shadow
+  namespace: releases
+spec:
+  selector:
+    app: checkout
+    track: shadow
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout-shadow
+  namespace: releases
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: checkout
+      track: shadow
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/checkout/checkout-shadow:1.0.0
+        ports:
+        - containerPort: 8080
+---
+# One Gateway, four protocols: GRPCRoute on an HTTPS listener that accepts only GRPCRoute,
+# TLSRoute (passthrough), TCPRoute and UDPRoute, with routes in another namespace.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: edge-l4
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: multi-protocol
+  namespace: edge-l4
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: grpc
+    port: 443
+    protocol: HTTPS
+    hostname: grpc.example.com
+    tls:
+      certificateRefs:
+      - name: grpc-tls
+    allowedRoutes:
+      namespaces:
+        from: All
+      kinds:
+      - kind: GRPCRoute
+  - name: tls-passthrough
+    port: 8443
+    protocol: TLS
+    hostname: vault.example.com
+    tls:
+      mode: Passthrough
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: redis
+    port: 6379
+    protocol: TCP
+    allowedRoutes:
+      namespaces:
+        from: All
+  - name: syslog
+    port: 514
+    protocol: UDP
+    allowedRoutes:
+      namespaces:
+        from: All
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grpc-tls
+  namespace: edge-l4
+type: kubernetes.io/tls
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GRPCRoute
+metadata:
+  name: inventory-grpc
+  namespace: platform
+spec:
+  parentRefs:
+  - name: multi-protocol
+    namespace: edge-l4
+    sectionName: grpc
+  hostnames:
+  - grpc.example.com
+  rules:
+  - matches:
+    - method:
+        service: inventory.v1.Inventory
+    backendRefs:
+    - name: inventory-grpc
+      port: 9090
+  - matches:
+    - method:
+        service: pricing.v1.Pricing
+        method: Quote
+    backendRefs:
+    - name: pricing-grpc
+      port: 9090
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TLSRoute
+metadata:
+  name: vault
+  namespace: platform
+spec:
+  parentRefs:
+  - name: multi-protocol
+    namespace: edge-l4
+    sectionName: tls-passthrough
+  hostnames:
+  - vault.example.com
+  rules:
+  - backendRefs:
+    - name: vault
+      port: 8200
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: TCPRoute
+metadata:
+  name: redis
+  namespace: platform
+spec:
+  parentRefs:
+  - name: multi-protocol
+    namespace: edge-l4
+    sectionName: redis
+  rules:
+  - backendRefs:
+    - name: redis
+      port: 6379
+---
+apiVersion: gateway.networking.k8s.io/v1alpha2
+kind: UDPRoute
+metadata:
+  name: syslog
+  namespace: platform
+spec:
+  parentRefs:
+  - name: multi-protocol
+    namespace: edge-l4
+    sectionName: syslog
+  rules:
+  - backendRefs:
+    - name: syslog-collector
+      port: 514
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-grpc
+  namespace: platform
+spec:
+  selector:
+    app: inventory-grpc
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-grpc
+  namespace: platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: inventory-grpc
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/platform/inventory-grpc:1.0.0
+        ports:
+        - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pricing-grpc
+  namespace: platform
+spec:
+  selector:
+    app: pricing-grpc
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricing-grpc
+  namespace: platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: pricing-grpc
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/platform/pricing-grpc:1.0.0
+        ports:
+        - containerPort: 9090
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault
+  namespace: platform
+spec:
+  selector:
+    app: vault
+  ports:
+  - name: http
+    port: 8200
+    targetPort: 8200
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault
+  namespace: platform
+spec:
+  replicas: 3
+  selector:
+    matchLabels: &id001
+      app: vault
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/platform/vault:1.0.0
+        ports:
+        - containerPort: 8200
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: platform
+spec:
+  selector:
+    app: redis
+  ports:
+  - name: http
+    port: 6379
+    targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels: &id001
+      app: redis
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/platform/redis:1.0.0
+        ports:
+        - containerPort: 6379
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: syslog-collector
+  namespace: platform
+spec:
+  selector:
+    app: syslog-collector
+  ports:
+  - name: http
+    port: 514
+    targetPort: 514
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syslog-collector
+  namespace: platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: syslog-collector
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/platform/syslog-collector:1.0.0
+        ports:
+        - containerPort: 514

@@ -1,0 +1,378 @@
+# Gateway API - Broken References: the attachment and reference mistakes that most often stop traffic,
+# one per route. Each is marked BROKEN, WARNING or NOTE above its document with the Atlas rule that
+# reports it. Open Diagnostics, or select a route, to read the explanation and the suggested fix.
+# Synthetic: example.com hosts, registry.example.com images, RFC 5737 addresses; Secrets carry no data.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: nginx
+spec:
+  controllerName: gateway.nginx.org/nginx-gateway-controller
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: broken
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: team-x
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shared
+---
+# The Gateway: HTTP and HTTPS listeners for a.example.com, and a TCP listener.
+# NOTE (unresolved-reference): the HTTPS listener references certificate missing-cert, which is not in
+# this import. Offline imports are often partial, so it is a note; a live scan reports it as an error.
+# (Hide Secrets hides it on the Canvas; the Gateway inspector and Diagnostics still show it.)
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: edge
+  namespace: broken
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: http
+    port: 80
+    protocol: HTTP
+    hostname: a.example.com
+  - name: https
+    port: 443
+    protocol: HTTPS
+    hostname: a.example.com
+    tls:
+      certificateRefs:
+      - name: missing-cert
+  - name: tcp
+    port: 5432
+    protocol: TCP
+---
+# BROKEN (parent-listener-not-found): sectionName grpc names no listener on the Gateway.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wrong-section
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: grpc
+  rules:
+  - backendRefs:
+    - name: app
+      port: 80
+  hostnames:
+  - a.example.com
+---
+# BROKEN (listener-hostname-mismatch): b.example.com is outside the http listener hostname a.example.com.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: hostname-mismatch
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - backendRefs:
+    - name: app
+      port: 80
+  hostnames:
+  - b.example.com
+---
+# BROKEN (listener-namespace-not-allowed): the listeners default to allowedRoutes from: Same, so a
+# route in namespace team-x cannot attach.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: other-team
+  namespace: team-x
+spec:
+  parentRefs:
+  - name: edge
+    namespace: broken
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /team-x
+    backendRefs:
+    - name: team-x-app
+      port: 80
+---
+# BROKEN (listener-kind-not-allowed): an HTTPRoute aimed at the TCP listener.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-on-tcp
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: tcp
+  rules:
+  - backendRefs:
+    - name: app
+      port: 80
+---
+# BROKEN (route-no-valid-parent): the parent Gateway lives in another cluster and is not imported
+# (the missing Gateway itself is a note).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: no-parent
+  namespace: broken
+spec:
+  parentRefs:
+  - name: gateway-in-another-cluster
+    namespace: elsewhere
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /elsewhere
+    backendRefs:
+    - name: app
+      port: 80
+  hostnames:
+  - a.example.com
+---
+# BROKEN (service-port-not-found): Service app has no port 9999.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: wrong-port
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /x
+    backendRefs:
+    - name: app
+      port: 9999
+  hostnames:
+  - a.example.com
+---
+# NOTE (host-conflict): the routes here share a.example.com, which is valid. dup-a and dup-b also
+# both match /same, so only one of them can receive that traffic.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dup-a
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /same
+    backendRefs:
+    - name: app
+      port: 80
+  hostnames:
+  - a.example.com
+---
+# NOTE (unresolved-reference): Service app-v2 is not in this import either.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dup-b
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /same
+    backendRefs:
+    - name: app-v2
+      port: 80
+  hostnames:
+  - a.example.com
+---
+# BROKEN (missing-reference-grant): the grant in namespace shared admits GRPCRoutes only, so this
+# HTTPRoute may not use shared/catalog.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: cross-namespace
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /catalog
+    backendRefs:
+    - name: catalog
+      port: 80
+      namespace: shared
+  hostnames:
+  - a.example.com
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: grpc-only
+  namespace: shared
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: GRPCRoute
+    namespace: broken
+  to:
+  - group: ''
+    kind: Service
+    name: catalog
+---
+# WARNING (selector-no-workload): the Service selector says app: ap, a typo for app: app-selector-typo.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: selector-typo
+  namespace: broken
+spec:
+  parentRefs:
+  - name: edge
+    sectionName: http
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /typo
+    backendRefs:
+    - name: app-selector-typo
+      port: 80
+  hostnames:
+  - a.example.com
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-selector-typo
+  namespace: broken
+spec:
+  selector:
+    app: ap
+  ports:
+  - port: 80
+    targetPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+  namespace: broken
+spec:
+  selector:
+    app: app
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+  namespace: broken
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: app
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/broken/app:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: team-x-app
+  namespace: team-x
+spec:
+  selector:
+    app: team-x-app
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: team-x-app
+  namespace: team-x
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: team-x-app
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/team-x/team-x-app:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: catalog
+  namespace: shared
+spec:
+  selector:
+    app: catalog
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: catalog
+  namespace: shared
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: catalog
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/shared/catalog:1.0.0
+        ports:
+        - containerPort: 8080

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="1200" height="430" font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Gateway Atlas analyze flow</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5fc4c9"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#132131"/>
+      <stop offset="1" stop-color="#0e1824"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="430" rx="18" fill="url(#bg)"/>
+  <text x="32" y="44" fill="#e8eef5" font-size="22" font-weight="700">Analyze: from manifests to a traffic map</text>
+  <text x="32" y="68" fill="#9fb1c3" font-size="14">Everything runs locally. Nothing is written back to files or clusters.</text>
+
+  <!-- Column 1: sources -->
+  <rect x="32" y="96" width="250" height="300" rx="14" fill="#1a2b3d" stroke="#2f4a63"/>
+  <text x="52" y="126" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">1 · IMPORT</text>
+  <g font-size="14" fill="#e8eef5">
+    <rect x="52" y="140" width="210" height="32" rx="8" fill="#22384f"/><text x="66" y="161">Bundled example</text>
+    <rect x="52" y="180" width="210" height="32" rx="8" fill="#22384f"/><text x="66" y="201">YAML files · directory</text>
+    <rect x="52" y="220" width="210" height="32" rx="8" fill="#22384f"/><text x="66" y="241">Web / GitHub URL</text>
+    <rect x="52" y="260" width="210" height="32" rx="8" fill="#22384f"/><text x="66" y="281">Paste YAML</text>
+    <rect x="52" y="300" width="210" height="32" rx="8" fill="#22384f" stroke="#5fc4c9" stroke-dasharray="4 3"/><text x="66" y="321">Live cluster (read-only)</text>
+  </g>
+  <text x="52" y="368" fill="#9fb1c3" font-size="12">Live scan only with --enable-live</text>
+
+  <!-- Column 2: parse -->
+  <rect x="330" y="146" width="230" height="200" rx="14" fill="#1a2b3d" stroke="#2f4a63"/>
+  <text x="350" y="176" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">2 · PARSE</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="350" y="206">Multi-document YAML</text>
+    <text x="350" y="232">Exact Group/Version/Kind</text>
+    <text x="350" y="258">Unknown kinds kept</text>
+    <text x="350" y="284" fill="#f0b45a">Secret values removed</text>
+    <text x="350" y="310">Source files untouched</text>
+  </g>
+
+  <!-- Column 3: analyze -->
+  <rect x="608" y="146" width="230" height="200" rx="14" fill="#1a2b3d" stroke="#2f4a63"/>
+  <text x="628" y="176" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">3 · ANALYZE</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="628" y="206">Relationships</text>
+    <text x="644" y="228" fill="#9fb1c3" font-size="13">parent · backend · policy</text>
+    <text x="644" y="248" fill="#9fb1c3" font-size="13">TLS · selector · mirror</text>
+    <text x="628" y="278">Findings</text>
+    <text x="644" y="300" fill="#ef7f7f" font-size="13">error</text><text x="684" y="300" fill="#f0b45a" font-size="13">warning</text><text x="744" y="300" fill="#7fb6ef" font-size="13">note</text>
+    <text x="628" y="326" fill="#9fb1c3" font-size="13">with field and evidence</text>
+  </g>
+
+  <!-- Column 4: explore -->
+  <rect x="886" y="96" width="282" height="300" rx="14" fill="#1a2b3d" stroke="#5fc4c9"/>
+  <text x="906" y="126" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">4 · EXPLORE</text>
+  <g font-size="14" fill="#e8eef5">
+    <rect x="906" y="140" width="242" height="32" rx="8" fill="#22384f"/><text x="920" y="161">Canvas · Families layout</text>
+    <rect x="906" y="180" width="242" height="32" rx="8" fill="#22384f"/><text x="920" y="201">Search · namespace · entry</text>
+    <rect x="906" y="220" width="242" height="32" rx="8" fill="#22384f"/><text x="920" y="241">Inspector · YAML viewer</text>
+    <rect x="906" y="260" width="242" height="32" rx="8" fill="#22384f"/><text x="920" y="281">Diagnostics</text>
+    <rect x="906" y="300" width="242" height="32" rx="8" fill="#22384f"/><text x="920" y="321">Save Image · SVG JPG PDF</text>
+  </g>
+  <text x="906" y="368" fill="#9fb1c3" font-size="12">Then: Migration Playground, CRD explorer</text>
+
+  <g stroke="#5fc4c9" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+    <path d="M282 246 C 305 246, 305 246, 326 246"/>
+    <path d="M560 246 C 583 246, 583 246, 604 246"/>
+    <path d="M838 246 C 861 246, 861 246, 882 246"/>
+  </g>
+</svg>

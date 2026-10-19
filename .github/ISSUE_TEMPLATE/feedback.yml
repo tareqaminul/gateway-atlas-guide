@@ -7,7 +7,7 @@ body:
     attributes:
       label: Atlas release
       description: From Help → About
-      placeholder: "2.2.2"
+      placeholder: "2.3.0"
   - type: dropdown
     id: area
     attributes:

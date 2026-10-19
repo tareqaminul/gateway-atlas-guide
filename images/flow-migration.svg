@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520" width="1200" height="520" font-family="Inter, -apple-system, Segoe UI, Helvetica, Arial, sans-serif">
+  <title>Gateway Atlas Migration Playground flow</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5fc4c9"/>
+    </marker>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#b69cf0"/>
+    </marker>
+    <marker id="arrow3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f0b45a"/>
+    </marker>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#132131"/>
+      <stop offset="1" stop-color="#0e1824"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="1200" height="520" rx="18" fill="url(#bg)"/>
+  <text x="32" y="44" fill="#e8eef5" font-size="22" font-weight="700">Migration Playground: Ingress → Gateway API / NGINX Gateway Fabric</text>
+  <text x="32" y="68" fill="#9fb1c3" font-size="14">Consultative: understand first, decide the architecture, draft last. Every draft is figurative and needs review.</text>
+
+  <!-- Import -->
+  <rect x="32" y="110" width="180" height="200" rx="14" fill="#1a2b3d" stroke="#2f4a63"/>
+  <text x="52" y="140" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">IMPORT</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="52" y="170">Ingresses from</text>
+    <text x="52" y="194">files, URL, example</text>
+    <text x="52" y="218">or a live scan</text>
+    <text x="52" y="254" fill="#9fb1c3" font-size="13">ingress-nginx or</text>
+    <text x="52" y="274" fill="#9fb1c3" font-size="13">F5 NGINX Ingress</text>
+    <text x="52" y="294" fill="#9fb1c3" font-size="13">Controller</text>
+  </g>
+
+  <!-- Discover -->
+  <rect x="252" y="110" width="270" height="200" rx="14" fill="#1a2b3d" stroke="#5fc4c9"/>
+  <text x="272" y="140" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">1 · DISCOVER</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="272" y="170">Ingresses table · tiers, badges</text>
+    <text x="272" y="196">Annotations → NGF targets</text>
+    <text x="272" y="222">Hosts: how they merge today</text>
+    <text x="272" y="248">Findings:</text>
+    <text x="288" y="272" fill="#9fb1c3" font-size="13">Today · Gateway API · Decide</text>
+  </g>
+
+  <!-- Design -->
+  <rect x="562" y="110" width="270" height="200" rx="14" fill="#1a2b3d" stroke="#5fc4c9"/>
+  <text x="582" y="140" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">2 · DESIGN</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="582" y="170">Add the Gateways you want</text>
+    <text x="582" y="196">Listener hostnames strategy</text>
+    <text x="582" y="222">Attach hosts (or suggest)</text>
+    <text x="582" y="248">Check Design</text>
+    <text x="598" y="272" fill="#9fb1c3" font-size="13">load balancers · splits · grants</text>
+  </g>
+
+  <!-- Outcomes -->
+  <rect x="872" y="110" width="296" height="200" rx="14" fill="#1a2b3d" stroke="#2f4a63"/>
+  <text x="892" y="140" fill="#5fc4c9" font-size="12" font-weight="700" letter-spacing="1.5">OUTCOMES</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="892" y="170">Design record (JSON)</text>
+    <text x="892" y="196">Decisions to sign off, with owners</text>
+    <text x="892" y="222">Platform skeleton (figurative)</text>
+    <text x="892" y="248">Architecture diagram</text>
+    <text x="892" y="274">Download Report</text>
+  </g>
+
+  <g stroke="#5fc4c9" stroke-width="2.5" fill="none" marker-end="url(#arrow)">
+    <path d="M212 210 L248 210"/>
+    <path d="M522 210 L558 210"/>
+    <path d="M832 210 L868 210"/>
+  </g>
+
+  <!-- Legacy draft branch -->
+  <rect x="252" y="370" width="580" height="112" rx="14" fill="#1d2440" stroke="#b69cf0" stroke-dasharray="6 4"/>
+  <text x="272" y="400" fill="#b69cf0" font-size="12" font-weight="700" letter-spacing="1.5">DRAFT (LEGACY PER-INGRESS) · TO EXPLORE MAPPINGS</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="272" y="430">Setup → Preflight → Annotations (exact · approximate · unsupported)</text>
+    <text x="272" y="456">→ Draft YAML · Suggestions · Review notes → Compare before / after</text>
+  </g>
+  <path d="M120 310 C 120 420, 180 426, 248 426" stroke="#b69cf0" stroke-width="2.5" fill="none" marker-end="url(#arrow2)"/>
+
+  <!-- Review -->
+  <rect x="872" y="370" width="296" height="112" rx="14" fill="#2a2416" stroke="#f0b45a"/>
+  <text x="892" y="400" fill="#f0b45a" font-size="12" font-weight="700" letter-spacing="1.5">BEFORE ANY CUTOVER</text>
+  <g font-size="14" fill="#e8eef5">
+    <text x="892" y="430">Review with platform and</text>
+    <text x="892" y="454">app owners; test in staging</text>
+  </g>
+  <g stroke="#f0b45a" stroke-width="2" fill="none" marker-end="url(#arrow3)">
+    <path d="M1020 310 L1020 366"/>
+  </g>
+</svg>

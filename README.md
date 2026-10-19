@@ -1,62 +1,85 @@
 # Gateway Atlas
 
-**Gateway Atlas maps Kubernetes traffic.** Load your manifests, or read a cluster read-only, and see how every Gateway, route, policy, certificate and Service relates to the others. It flags what looks wrong and helps you plan the move from ingress-nginx to Gateway API and NGINX Gateway Fabric.
+**Gateway Atlas maps Kubernetes traffic.** Load your manifests, or read a cluster read-only, and see how every Gateway, route, policy, certificate and Service relates to the others. It flags what looks wrong, and helps you plan the move from Ingress to Gateway API and NGINX Gateway Fabric.
 
-This repository is for **users and reviewers**. It has the user guide, an architecture overview and example manifests, and it is where you report issues and feedback. Gateway Atlas is in an open **preview**: the current release is **2.2.2**.
+![The Gateway Atlas Canvas: a migration in progress, with a Gateway API route splitting traffic 50/50 while legacy Ingress and VirtualServer resources still serve the same hosts](images/canvas-hero.png)
+
+This repository is for **Gateway Atlas users**. It has the guides, a few example manifests, and the forms for reporting issues and feedback. Gateway Atlas is in an open **preview**; the current release is **2.3.0**.
+
+**New here?** Read the [Quick start](docs/quick-start.md): you can be exploring in about five minutes.
 
 ## Why Gateway Atlas
 
-Kubernetes networking configuration is spread across many objects and API groups. Each one is easy to read; how they connect is not. Typical questions are hard to answer from YAML alone:
+Kubernetes networking configuration is spread across many objects and API groups. Each one is easy to read, but how they connect is not. Typical questions are hard to answer from YAML alone:
 
 - Which Gateway, listener and route serve this hostname, and which Service do they reach?
-- Which policy, filter, certificate or iRule applies, and from which namespace?
-- What is broken or ambiguous: a missing Service, a cross-namespace reference without a ReferenceGrant, a route with no valid parent?
-- **Migration:** the community `kubernetes/ingress-nginx` controller was retired in March 2026. What does moving these Ingresses to Gateway API involve, and how many Gateways, and therefore load balancers, should there be?
+- Which policy, filter, certificate or WAF policy applies, and from which namespace?
+- What is broken or ambiguous? For example a missing Service, a cross-namespace reference without a ReferenceGrant, or a route that no listener accepts.
+- **Migration:** the community `kubernetes/ingress-nginx` controller was retired in March 2026. What does moving these Ingresses to Gateway API involve? How many Gateways, and therefore load balancers, should there be?
 
-Gateway Atlas answers these by building one relationship graph from your resources, showing it on an interactive Canvas, and explaining its findings in plain language.
+Gateway Atlas answers these questions in three ways:
+- it builds one relationship graph from your resources;
+- it draws the graph on an interactive Canvas;
+- it explains its findings in plain language.
 
-## What it does
+## What you can do
 
-- **Explore:** a left-to-right Canvas of classes, Gateways, routes, policies, Services and workloads, grouped by namespace and controller. Select anything to see its facts, relationships, findings and YAML.
-- **Diagnose:** errors, warnings and notes with the exact field and evidence, for example unresolved references, unauthorized cross-namespace references, bad ports or unmatched selectors.
-- **Migration Playground** (ingress-nginx → Gateway API / NGF):
-  - **Discover** shows what your Ingresses really do: hosts shared between Ingresses, snippets, CORS, regex, rewrites and limits.
-  - **Design** lets you choose the Gateway topology and checks its load-balancer footprint, listeners, namespaces and certificates.
-  - It ends with a design record, a decision list and a figurative platform skeleton.
-- **Explore Supported CRDs:** a floating `kubectl explain`-style tree of 41 bundled CRD schemas (Gateway API, NGF, NGINX Ingress Controller, F5 CIS and more), available offline.
-- **Covers:** Kubernetes and Gateway API, NGINX Gateway Fabric, NGINX Ingress Controller and App Protect, F5 BIG-IP Container Ingress Services and IPAM, BIG-IP Next for Kubernetes, and the Gateway API Inference Extension.
+| | |
+| --- | --- |
+| ![Search suggestions narrowing the resource list](images/search-suggestions.png) | **Find anything fast.** Search all fields, or one of Kind, Namespace, Label, API group or Name, with suggestions from your import. Pick a result and the Canvas frames it. |
+| ![A selected HTTPRoute with weighted, header and mirrored backends](images/search-select.png) | **See what traffic really does.** Edge labels show paths, weights, header and query matches, mirrors and redirects. Many policies collapse into clickable pills. |
+| ![The inspector showing the original YAML of a route](images/inspector-yaml.png) | **Inspect and read YAML.** Every card opens an inspector with facts, relationships, findings and the original YAML. |
+| ![Diagnostics listing attachment errors with exact fields](images/diagnostics.png) | **Diagnose.** Errors, warnings and notes name the exact field and evidence. Click one to jump to the resource. |
+| ![Migration Playground Discover summary and Ingress table](images/discover-summary.png) | **Plan a migration.** Discover what your Ingresses do, design the Gateways you want, and get decisions, a platform skeleton and an architecture diagram. |
+| ![The floating CRD explorer explaining WAFPolicy fields](images/crd-explorer.png) | **Explore CRDs offline.** A `kubectl explain`-style tree for the bundled Gateway API, NGINX, F5 WAF and F5 CIS schemas, with mutually exclusive fields marked. |
 
-## Design principles
+It covers:
+- Kubernetes and Gateway API (including the Inference Extension);
+- NGINX Gateway Fabric;
+- F5 NGINX Ingress Controller and F5 WAF for NGINX;
+- F5 BIG-IP Container Ingress Services and IPAM;
+- F5 BIG-IP Next for Kubernetes.
 
-- **Local-first:** it runs on your machine; your manifests are not sent to any service.
-- **Read-only:** live cluster access is opt-in and only lists resources. Atlas has no create, update, delete, apply or exec code.
-- **No Secret data:** Kubernetes Secret `data` and `stringData` are removed before analysis; only names and types are shown.
-- **Honest about limits:** static analysis is labelled as static, and approximate or unsupported migration behaviour is reported, never silently dropped. Migration drafts are figurative and must be reviewed.
+## How it works
+
+![Analyze flow: import, parse, analyze, explore](images/flow-analyze.svg)
+
+![Migration Playground flow: import, Discover, Design, outcomes, with the legacy Draft branch](images/flow-migration.svg)
 
 ## Quick start
 
-You need Docker (Docker Desktop on macOS or Docker Engine on Linux). One image runs on Apple Silicon (`linux/arm64`) and x86-64 Linux (`linux/amd64`).
+You need Docker: Docker Desktop on macOS, or Docker Engine on x86-64 Linux.
 
 ```bash
-docker pull ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080
 ```
 
-```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas-rpi-1:2.2.2 serve --addr 0.0.0.0:8080
-```
+1. Open <http://127.0.0.1:8080>.
+2. Choose **Import → Bundled example** and pick any example.
 
-Open <http://127.0.0.1:8080>, choose **Import → Bundled example**, and explore. Then follow the [user guide](docs/user-guide.md).
+To read a live cluster, see [Quick start · with a live cluster](docs/quick-start.md#4-optional-connect-a-live-cluster-read-only).
+
+## Design principles
+
+- **Local-first:** it runs on your machine, and your manifests are not sent to any service.
+- **Read-only:** live cluster access is opt-in and only lists resources. Atlas has no code to create, update, delete, apply or exec anything.
+- **No Secret data:** Kubernetes Secret `data` and `stringData` are removed before analysis; only names and types are shown.
+- **Honest about limits:**
+  - Static analysis is labelled as static.
+  - Approximate or unsupported migration behaviour is reported, never silently dropped.
+  - Migration drafts are figurative and must be reviewed.
 
 ## Documentation
 
-- [User guide](docs/user-guide.md): running Atlas, imports, live clusters, the Canvas, diagnostics, the Migration Playground, the CRD explorer and troubleshooting.
-- [Architecture](docs/architecture.md): how Atlas is built and where its trust boundaries are.
-- [Reviewer checklist](docs/reviewer-checklist.md): a guided tour for testers.
-- [Examples](examples/): synthetic manifests to try (all names use `example.test`).
+- [Quick start](docs/quick-start.md): run Atlas, with or without a cluster, and take a five-minute tour.
+- [User guide](docs/user-guide.md): every feature, with screenshots. It covers imports, the Canvas, search, the inspector, diagnostics, the Migration Playground, the CRD explorer, the command line and troubleshooting.
+- [Examples](examples/): synthetic manifests to import as files.
 
 ## Feedback and issues
 
-Please open an issue in this repository using the **Bug report** or **Feedback** form. Include the Atlas release (**Help → About**) and your browser and platform.
+Please open an issue in this repository using the **Bug report** or **Feedback** form. Include:
+- the Atlas release (**Help → About**);
+- your browser and platform.
 
 **Never paste kubeconfig credentials, tokens, certificates, Secret values or private manifests into an issue.** Reduce a problem to a small synthetic example instead. To report a security problem privately, see [SECURITY.md](SECURITY.md).
 

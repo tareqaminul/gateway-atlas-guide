@@ -1,0 +1,323 @@
+# Migration In-Progress: a cut-over caught half-way.
+# - portal.example.com is served by a community ingress-nginx Ingress and by an NGINX Gateway Fabric
+#   HTTPRoute, which splits /api 50/50 between the old Service and a new one.
+# - reports.example.com is served by both a NIC Ingress and a NIC VirtualServer.
+# Atlas notes each double-owned host (host-multiple-kinds). Open the Migration Playground for the Ingress side.
+# Synthetic: example.com hosts, registry.example.com images, RFC 5737 addresses; Secrets carry no data.
+# Two classes mid-migration: community ingress-nginx and F5 NGINX Ingress Controller.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: legacy
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: modern
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx
+spec:
+  controller: k8s.io/ingress-nginx
+---
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: nginx-plus
+spec:
+  controller: nginx.org/ingress-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: nginx
+spec:
+  controllerName: gateway.nginx.org/nginx-gateway-controller
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: portal-legacy
+  namespace: legacy
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
+    nginx.ingress.kubernetes.io/proxy-read-timeout: '60'
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - portal.example.com
+    secretName: portal-tls
+  rules:
+  - host: portal.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: portal
+            port:
+              number: 80
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: portal-api
+            port:
+              number: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: reports-nic
+  namespace: legacy
+  annotations:
+    nginx.org/proxy-read-timeout: 60s
+spec:
+  ingressClassName: nginx-plus
+  rules:
+  - host: reports.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: reports
+            port:
+              number: 80
+---
+apiVersion: k8s.nginx.org/v1
+kind: VirtualServer
+metadata:
+  name: reports
+  namespace: legacy
+spec:
+  host: reports.example.com
+  upstreams:
+  - name: reports
+    service: reports
+    port: 80
+  routes:
+  - path: /
+    action:
+      pass: reports
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: modern-edge
+  namespace: modern
+spec:
+  gatewayClassName: nginx
+  listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS
+    hostname: portal.example.com
+    tls:
+      certificateRefs:
+      - name: portal-tls
+        namespace: legacy
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: modern-gateway-cert
+  namespace: legacy
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    namespace: modern
+  to:
+  - group: ''
+    kind: Secret
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: modern-routes-backends
+  namespace: legacy
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: modern
+  to:
+  - group: ''
+    kind: Service
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: portal
+  namespace: modern
+spec:
+  parentRefs:
+  - name: modern-edge
+  hostnames:
+  - portal.example.com
+  rules:
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /
+    backendRefs:
+    - name: portal
+      port: 80
+      namespace: legacy
+  - matches:
+    - path:
+        type: PathPrefix
+        value: /api
+    backendRefs:
+    - name: portal-api
+      port: 8080
+      namespace: legacy
+      weight: 50
+    - name: portal-api-v2
+      port: 8080
+      weight: 50
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: portal-tls
+  namespace: legacy
+type: kubernetes.io/tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal
+  namespace: legacy
+spec:
+  selector:
+    app: portal
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  namespace: legacy
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: portal
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/legacy/portal:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal-api
+  namespace: legacy
+spec:
+  selector:
+    app: portal-api
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-api
+  namespace: legacy
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: portal-api
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/legacy/portal-api:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reports
+  namespace: legacy
+spec:
+  selector:
+    app: reports
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports
+  namespace: legacy
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: reports
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/legacy/reports:1.0.0
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal-api-v2
+  namespace: modern
+spec:
+  selector:
+    app: portal-api-v2
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-api-v2
+  namespace: modern
+spec:
+  replicas: 2
+  selector:
+    matchLabels: &id001
+      app: portal-api-v2
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/modern/portal-api-v2:1.0.0
+        ports:
+        - containerPort: 8080
