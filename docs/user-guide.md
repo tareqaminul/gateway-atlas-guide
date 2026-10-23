@@ -5,7 +5,7 @@ This guide covers every part of Gateway Atlas 2.3.0. It starts with running Atla
 - [1. Run Gateway Atlas](#1-run-gateway-atlas)
 - [2. The workspace at a glance](#2-the-workspace-at-a-glance)
 - [3. Import options](#3-import-options)
-- [4. Connect to a live cluster (read-only)](#4-connect-to-a-live-cluster-read-only)
+- [4. Connect to a live cluster (read-only)](#4-connect-to-a-live-cluster-read-only) — including [an OpenShift provisioner](#44-on-an-openshift-provisioner-docker-on-rhel)
 - [5. The Canvas](#5-the-canvas)
 - [6. Search and narrowing down](#6-search-and-narrowing-down)
 - [7. Inspector and YAML viewer](#7-inspector-and-yaml-viewer)
@@ -145,6 +145,102 @@ Atlas lists:
 Other Gateway API kinds, such as GRPCRoute or TLSRoute, IngressClasses and other workload kinds are not scanned yet; import them as files if you need them. If your RBAC denies something, the scan still completes and reports what it could not read. If the cluster cannot be reached, Atlas says so and offers **Try again**.
 
 **What Atlas never does with a cluster:** create, update, patch, delete, apply, exec or port-forward. A read-only `ClusterRole` with `list` on these resources is enough. Secret values are removed on the server before analysis.
+
+### 4.4 On an OpenShift provisioner (Docker on RHEL)
+
+Atlas runs beside the cluster, in Docker on the provisioner host, not inside OpenShift. Four things differ from a laptop.
+
+**1. Give Atlas its own read-only identity.** Rather than the installer's admin kubeconfig, create a ServiceAccount that can only read. Run these as a cluster admin:
+
+```bash
+oc create namespace gateway-atlas
+```
+
+```bash
+oc create serviceaccount atlas-reader -n gateway-atlas
+```
+
+```bash
+oc apply -f - <<'YAML'
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gateway-atlas-readonly
+rules:
+- apiGroups: [""]
+  resources: [namespaces, services, pods, configmaps]
+  verbs: [get, list, watch]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [get, list, watch]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses]
+  verbs: [get, list, watch]
+- apiGroups: [discovery.k8s.io]
+  resources: [endpointslices]
+  verbs: [get, list, watch]
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [gatewayclasses, gateways, httproutes, referencegrants]
+  verbs: [get, list, watch]
+- apiGroups: [k8s.nginx.org, gateway.nginx.org, appprotect.f5.com, cis.f5.com, fic.f5.com, k8s.f5net.com, gateway.k8s.f5net.com, inference.networking.k8s.io, inference.networking.x-k8s.io]
+  resources: ["*"]
+  verbs: [get, list, watch]
+YAML
+```
+
+```bash
+oc create clusterrolebinding gateway-atlas-readonly --clusterrole=gateway-atlas-readonly --serviceaccount=gateway-atlas:atlas-reader
+```
+
+The role leaves out Secrets on purpose: a token that can list Secrets can read every Secret value in the cluster. The scan still completes and notes what it could not read.
+
+**2. Build a kubeconfig for that identity**, as a normal (non-root) user:
+
+```bash
+mkdir -p "$HOME/.config/gateway-atlas" && chmod 700 "$HOME/.config/gateway-atlas"
+```
+
+```bash
+oc config view --raw --minify --flatten -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > "$HOME/.config/gateway-atlas/ca.crt"
+```
+
+```bash
+oc --kubeconfig "$HOME/.config/gateway-atlas/config" config set-cluster ocp --server="$(oc whoami --show-server)" --certificate-authority="$HOME/.config/gateway-atlas/ca.crt" --embed-certs=true
+```
+
+```bash
+oc --kubeconfig "$HOME/.config/gateway-atlas/config" config set-credentials atlas-reader --token="$(oc create token atlas-reader -n gateway-atlas --duration=24h)"
+```
+
+```bash
+oc --kubeconfig "$HOME/.config/gateway-atlas/config" config set-context ocp-readonly --cluster=ocp --user=atlas-reader && oc --kubeconfig "$HOME/.config/gateway-atlas/config" config use-context ocp-readonly && chmod 600 "$HOME/.config/gateway-atlas/config" && rm "$HOME/.config/gateway-atlas/ca.crt"
+```
+
+The token expires; run the `set-credentials` command again to renew it.
+
+**3. Run Atlas with the host's network.** Lab and provisioner API names often come from `/etc/hosts` or a local DNS server, sometimes on IPv6 only, and a container on Docker's default network cannot see them: the scan then waits and fails with "The cluster could not be reached". Host networking avoids that; binding to `127.0.0.1` keeps Atlas local:
+
+```bash
+docker run -d --name gateway-atlas --restart unless-stopped --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 127.0.0.1:8080 --enable-live
+```
+
+- `--user "$(id -u):$(id -g)"` lets the container read your owner-only kubeconfig; do not make the file readable by others.
+- `:ro,Z` mounts the folder read-only and relabels it for SELinux, which can stay enforcing. Use it only on this dedicated folder.
+- With Podman (`podman-docker`), use `--userns=keep-id` instead of `--user`.
+
+To see the real cause of a connection problem, run one read-only scan from the command line; it prints the error:
+
+```bash
+docker run --rm --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:2.3.0 cluster scan --context ocp-readonly --namespace default
+```
+
+**4. Open it from your laptop** through an SSH tunnel, then browse to <http://127.0.0.1:8080>:
+
+```bash
+ssh -L 8080:127.0.0.1:8080 <user>@<provisioner>
+```
+
+Atlas does not scan OpenShift Routes yet; it reads Ingresses, Gateway API resources and the NGINX and F5 resources listed above.
 
 ## 5. The Canvas
 
@@ -545,7 +641,7 @@ docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas:2.3.0 valid
 | The page does not load | Check that the container is running, and that the port in the URL matches the first number in `-p`. |
 | **Kubernetes cluster** is unavailable | Restart with `--enable-live` and a mounted kubeconfig ([section 4](#4-connect-to-a-live-cluster-read-only)). |
 | No contexts, or a kubeconfig error | The mounted folder must contain a regular, readable file named `config` at `/home/nonroot/.kube`. Recreate the container after changing the mount. |
-| "The cluster could not be reached" | Check network access and credentials. On Docker Desktop, point the copy at `kubernetes.docker.internal:6443` ([section 4.1](#41-prepare-a-kubeconfig-for-the-container)). |
+| "The cluster could not be reached" | Check network access and credentials. On Docker Desktop, point the copy at `kubernetes.docker.internal:6443` ([section 4.1](#41-prepare-a-kubeconfig-for-the-container)). On a provisioner whose API name comes from `/etc/hosts` or a local DNS server, use `--network host` ([section 4.4](#44-on-an-openshift-provisioner-docker-on-rhel)). |
 | Cloud cluster authentication fails | `exec` credential plugins are not in the image. Use a static token or certificate for a read-only service account. |
 | A relationship line is missing | Check that the source really contains an explicit reference with the exact group, kind, namespace and name. Atlas does not invent links. |
 | A card is dashed | It is referenced but not in your import. Import the target too, or check its exact API group, version, kind, namespace and name. |
