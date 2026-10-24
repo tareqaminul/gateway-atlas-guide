@@ -4,7 +4,7 @@
 
 ![The Gateway Atlas Canvas: a migration in progress, with a Gateway API route splitting traffic 50/50 while legacy Ingress and VirtualServer resources still serve the same hosts](images/canvas-hero.png)
 
-This repository is for **Gateway Atlas users**. It has the guides, a few example manifests, and the forms for reporting issues and feedback. Gateway Atlas is in an open **preview**; the current release is **2.3.0**.
+This repository is for **Gateway Atlas users**. It has the guides, a few example manifests, and the forms for reporting issues and feedback. Gateway Atlas is in an open **preview**; the current release is **2.3.1**.
 
 **New here?** Read the [Quick start](docs/quick-start.md): you can be exploring in about five minutes.
 
@@ -51,19 +51,30 @@ It covers:
 You need Docker: Docker Desktop on macOS, or Docker Engine on x86-64 Linux.
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 0.0.0.0:8080
 ```
+
+`latest` follows the newest release; pin a version tag such as `:2.3.1` for a fixed setup.
 
 1. Open <http://127.0.0.1:8080>.
 2. Choose **Import → Bundled example** and pick any example.
 
 To read a live cluster, see [Quick start · with a live cluster](docs/quick-start.md#4-optional-connect-a-live-cluster-read-only).
 
+## What's new in 2.3.1
+
+- **Save snapshot:** keep a live scan as a YAML file and analyse it offline later, with its scan time and warnings.
+- **Load kubeconfig** in the cluster dialog, kept in memory only; clearer live-cluster errors; scan warnings in **Diagnostics**.
+- **Inference Extension:** InferencePools read like Services, with the Endpoint Picker beside each pool and shared model servers on one card.
+- **Canvas:** class tiles, shared Services and linked namespaces sit next to what they connect; TransportServer heads its row.
+- **Secrets:** values are removed from every import, including pasted YAML.
+- **BIG-IP Next for Kubernetes 2.x** resources are discovered and linked.
+
 ## Design principles
 
 - **Local-first:** it runs on your machine, and your manifests are not sent to any service.
 - **Read-only:** live cluster access is opt-in and only lists resources. Atlas has no code to create, update, delete, apply or exec anything.
-- **No Secret data:** Kubernetes Secret `data` and `stringData` are removed before analysis; only names and types are shown.
+- **No Secret data:** Kubernetes Secret `data` and `stringData` are removed before analysis, from every source, including pasted YAML; only names and types are shown.
 - **Honest about limits:**
   - Static analysis is labelled as static.
   - Approximate or unsupported migration behaviour is reported, never silently dropped.

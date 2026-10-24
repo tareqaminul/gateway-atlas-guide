@@ -1,11 +1,11 @@
 # Gateway Atlas user guide
 
-This guide covers every part of Gateway Atlas 2.3.0. It starts with running Atlas, then explores your configuration on the Canvas, reads a live cluster, plans a migration in the Migration Playground, and explains CRDs. You do not need to know how Atlas works inside. If you only want to get going, start with the [quick start](quick-start.md).
+This guide covers every part of Gateway Atlas 2.3.1. It starts with running Atlas, then explores your configuration on the Canvas, reads a live cluster, plans a migration in the Migration Playground, and explains CRDs. You do not need to know how Atlas works inside. If you only want to get going, start with the [quick start](quick-start.md).
 
 - [1. Run Gateway Atlas](#1-run-gateway-atlas)
 - [2. The workspace at a glance](#2-the-workspace-at-a-glance)
 - [3. Import options](#3-import-options)
-- [4. Connect to a live cluster (read-only)](#4-connect-to-a-live-cluster-read-only) — including [an OpenShift provisioner](#44-on-an-openshift-provisioner-docker-on-rhel)
+- [4. Connect to a live cluster (read-only)](#4-connect-to-a-live-cluster-read-only) — including [snapshots](#save-a-snapshot) and [an OpenShift provisioner](#44-on-an-openshift-provisioner-docker-on-rhel)
 - [5. The Canvas](#5-the-canvas)
 - [6. Search and narrowing down](#6-search-and-narrowing-down)
 - [7. Inspector and YAML viewer](#7-inspector-and-yaml-viewer)
@@ -29,11 +29,11 @@ This guide covers every part of Gateway Atlas 2.3.0. It starts with running Atla
 You need Docker: Docker Desktop on macOS, or Docker Engine on x86-64 Linux. The image is multi-architecture (`linux/arm64` and `linux/amd64`), so Docker picks the right variant automatically.
 
 ```bash
-docker pull ghcr.io/tareqaminul/gateway-atlas:2.3.0
+docker pull ghcr.io/tareqaminul/gateway-atlas:latest
 ```
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 0.0.0.0:8080
 ```
 
 Open <http://127.0.0.1:8080>. Stop Atlas with `Ctrl+C` in that terminal.
@@ -41,7 +41,7 @@ Open <http://127.0.0.1:8080>. Stop Atlas with `Ctrl+C` in that terminal.
 - **Local only:** `-p 127.0.0.1:8080:8080` publishes the UI on your machine only. Keep the `127.0.0.1` part: Atlas has no login, so do not expose it on a shared network.
 - **Another port:** change the first number, for example `-p 127.0.0.1:9090:8080`, and open port 9090.
 - **Tags:**
-  - `:latest` follows the newest release; a version tag such as `:2.3.0` stays fixed.
+  - `:latest`, used throughout this guide, follows the newest release. Pin a version tag such as `:2.3.1` for a fixed, repeatable setup.
   - The older name `ghcr.io/tareqaminul/gateway-atlas-rpi-1` receives the same version tags for existing setups. Despite the name, it is the same image.
 - **Version:** **Help → About** shows the running release.
 
@@ -54,7 +54,7 @@ Open <http://127.0.0.1:8080>. Stop Atlas with `Ctrl+C` in that terminal.
 | **Header** | **Recent sources**, **Import**, **Diagnostics** (counts of errors, warnings and notes), **Analyze** (for pasted YAML), **Migration Playground**, **Help**, and the light/dark theme toggle. |
 | **Left panel** | **Namespace** filter, **Search**, the resource list grouped by kind, and **Paste YAML**. The **«** button hides the panel. |
 | **Topology bar** | A summary of what is shown (for example "16/26 resources · 4 hidden below Services"), the **Topology view**, the **Traffic entry** picker, **Stop at Services**, **Hide Secrets** and **Focus**. |
-| **Canvas** | The relationship map, with the toolbar (zoom, fit, lock, layout, **Save Image**), the legend, the minimap and the **CRDs** shortcut. |
+| **Canvas** | The relationship map, with the toolbar (zoom, fit, lock, layout, **Save snapshot** for live scans, **Save Image**), the legend, the minimap and the **CRDs** shortcut. |
 | **Inspector** | Opens on the right when you select a resource. |
 | **Status bar** | What you are looking at, for example "Exploring Example: Migration In-Progress". |
 
@@ -84,11 +84,13 @@ Expand **Paste YAML** at the bottom of the left panel and paste one or more docu
 
 Multi-document YAML and `kind: List` are both supported. Unknown kinds are kept as generic resources. Imported files are analyzed, never modified.
 
+**Secret values are removed.** If you paste or import a Secret with `data` or `stringData`, Atlas removes the values before analysis. After **Analyze**, the editor and **Recent sources** keep only the text without them, and the status bar says "Secret values removed from the YAML input". Your files on disk are not changed. Imports may be up to 32 MiB.
+
 > **Tip:** an Ingress-only or Gateway-only export is normal. A Service that is not in the import is drawn as a dashed placeholder and reported as a note, not as an error. The exception is a live-cluster scan, where the Service should exist.
 
 ## 4. Connect to a live cluster (read-only)
 
-Atlas reads a cluster through a kubeconfig on the machine that runs the server, never from the browser. Live access is off until you start the server with `--enable-live`.
+Atlas reads a cluster through a kubeconfig held by the server, never from the browser. Live access is off until you start the server with `--enable-live`. The kubeconfig can be mounted into the container ([4.1](#41-prepare-a-kubeconfig-for-the-container)) or loaded in the browser ([4.3](#43-scan)).
 
 ### 4.1 Prepare a kubeconfig for the container
 
@@ -117,7 +119,7 @@ Clusters reached through a cloud CLI login, such as the AKS, EKS or GKE `exec` p
 ```bash
 docker run --rm -p 127.0.0.1:8080:8080 \
   --mount type=bind,source="$HOME/.config/gateway-atlas",target=/home/nonroot/.kube,readonly \
-  ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080 --enable-live
+  ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 0.0.0.0:8080 --enable-live
 ```
 
 The directory must contain a file named `config`. `--mount` fails clearly if the source is missing, whereas `-v` would silently create an empty directory.
@@ -125,6 +127,7 @@ The directory must contain a file named `config`. `--mount` fails clearly if the
 ### 4.3 Scan
 
 1. Choose **Import → Kubernetes cluster**.
+   - No kubeconfig mounted? Select **Load kubeconfig** and pick a file. Atlas keeps it in the server's memory only, until **Forget** or a restart. It is never saved or sent back. Use a flattened, read-only one (`kubectl config view --raw --flatten`); `exec` login plugins and certificate file paths are rejected with a message saying why.
 2. Pick a **Context**. Atlas shows the **Target cluster** it will read.
 3. Optionally pick a **Namespace**; the default is **All permitted namespaces**.
 4. Select **Scan read-only**.
@@ -139,12 +142,23 @@ Atlas lists:
   - NGINX: `k8s.nginx.org`, `gateway.nginx.org`;
   - F5 WAF for NGINX (App Protect): `appprotect.f5.com`;
   - F5 CIS and IPAM: `cis.f5.com`, `fic.f5.com`;
-  - BIG-IP Next: `k8s.f5net.com`, `gateway.k8s.f5net.com`;
+  - BIG-IP Next: `k8s.f5net.com`, `gateway.k8s.f5net.com`, and for BIG-IP Next for Kubernetes 2.x `gateway.k8s.f5.com`, `k8s.f5.com`, `inference.k8s.f5.com`;
   - Inference Extension: `inference.networking.k8s.io`, `inference.networking.x-k8s.io`.
 
-Other Gateway API kinds, such as GRPCRoute or TLSRoute, IngressClasses and other workload kinds are not scanned yet; import them as files if you need them. If your RBAC denies something, the scan still completes and reports what it could not read. If the cluster cannot be reached, Atlas says so and offers **Try again**.
+Other Gateway API kinds, such as GRPCRoute or TLSRoute, IngressClasses and other workload kinds are not scanned yet; import them as files if you need them. If your RBAC denies something, the scan still completes. The status bar counts the scan warnings, and **Diagnostics** lists what could not be read. If the scan fails, Atlas says why (the name could not be resolved, a timeout, a TLS problem, credentials or permissions) and offers **Try again**.
 
 **What Atlas never does with a cluster:** create, update, patch, delete, apply, exec or port-forward. A read-only `ClusterRole` with `list` on these resources is enough. Secret values are removed on the server before analysis.
+
+#### Save a snapshot
+
+After a scan, **Save snapshot** in the Canvas toolbar saves what Atlas read as one YAML file in your downloads, such as `atlas-snapshot-<cluster>-all-<time>.yaml`. It makes no further call to the cluster.
+
+![Save snapshot beside Save Image in the Canvas toolbar](../images/save-snapshot.png)
+
+- **Import it later** with **Import → YAML files**, even without cluster access. The status bar reads "Exploring Snapshot: *cluster* · *scope* · taken *time*". A snapshot counts as cluster evidence, like a live scan: a missing Service is an error, and controller conditions are reported.
+- **What is in it:** every scanned resource with its status, sorted and in kubectl's field order. `managedFields` is left out. The header records the context, cluster, scope, time and any scan warnings. If the scan reported warnings or found nothing, Atlas asks first and marks the snapshot incomplete.
+- **Treat it as confidential.** Secret values are removed, but ConfigMap data, environment values, annotations, addresses and hostnames remain.
+- **Not a backup:** it holds only what Atlas reads, and it cannot be applied with `kubectl`.
 
 ### 4.4 On an OpenShift provisioner (Docker on RHEL)
 
@@ -182,7 +196,7 @@ rules:
 - apiGroups: [gateway.networking.k8s.io]
   resources: [gatewayclasses, gateways, httproutes, referencegrants]
   verbs: [get, list, watch]
-- apiGroups: [k8s.nginx.org, gateway.nginx.org, appprotect.f5.com, cis.f5.com, fic.f5.com, k8s.f5net.com, gateway.k8s.f5net.com, inference.networking.k8s.io, inference.networking.x-k8s.io]
+- apiGroups: [k8s.nginx.org, gateway.nginx.org, appprotect.f5.com, cis.f5.com, fic.f5.com, k8s.f5net.com, gateway.k8s.f5net.com, gateway.k8s.f5.com, k8s.f5.com, inference.k8s.f5.com, inference.networking.k8s.io, inference.networking.x-k8s.io]
   resources: ["*"]
   verbs: [get, list, watch]
 YAML
@@ -221,7 +235,7 @@ The token expires; run the `set-credentials` command again to renew it.
 **3. Run Atlas with the host's network.** Lab and provisioner API names often come from `/etc/hosts` or a local DNS server, sometimes on IPv6 only, and a container on Docker's default network cannot see them: the scan then waits and fails with "The cluster could not be reached". Host networking avoids that; binding to `127.0.0.1` keeps Atlas local:
 
 ```bash
-docker run -d --name gateway-atlas --restart unless-stopped --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 127.0.0.1:8080 --enable-live
+docker run -d --name gateway-atlas --restart unless-stopped --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 127.0.0.1:8080 --enable-live
 ```
 
 - `--user "$(id -u):$(id -g)"` lets the container read your owner-only kubeconfig; do not make the file readable by others.
@@ -231,7 +245,7 @@ docker run -d --name gateway-atlas --restart unless-stopped --network host --use
 To see the real cause of a connection problem, run one read-only scan from the command line; it prints the error:
 
 ```bash
-docker run --rm --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:2.3.0 cluster scan --context ocp-readonly --namespace default
+docker run --rm --network host --user "$(id -u):$(id -g)" -v "$HOME/.config/gateway-atlas:/atlas-kube:ro,Z" -e KUBECONFIG=/atlas-kube/config ghcr.io/tareqaminul/gateway-atlas:latest cluster scan --context ocp-readonly --namespace default
 ```
 
 **4. Open it from your laptop** through an SSH tunnel, then browse to <http://127.0.0.1:8080>:
@@ -246,7 +260,7 @@ Atlas does not scan OpenShift Routes yet; it reads Ingresses, Gateway API resour
 
 The Canvas reads **left to right**:
 
-class or controller → traffic entry (Gateway, Ingress, VirtualServer) → routes → Services → workloads
+class or controller → traffic entry (Gateway, Ingress, VirtualServer, TransportServer) → routes → Services → workloads
 
 Policies, TLS and configuration sit in nearby lanes, and namespaces are drawn as tiles.
 
@@ -254,9 +268,12 @@ Policies, TLS and configuration sit in nearby lanes, and namespaces are drawn as
 
 ### 5.1 Layouts
 
-The **Families** button in the toolbar switches the layout to **Classic** and back, and your choice is remembered.
-- **Families** (default) gives each Gateway family one row, with its policies and configuration, and one band per controller.
-- **Classic** is the earlier namespace-tile layout.
+The layout button in the toolbar names the current layout (**Layout: Families** or **Layout: Classic**). Select it to switch; a short notice says what the other layout emphasises, and your choice is remembered.
+- **Families** (default) answers *where does traffic go?* Every namespace is drawn as rows, one per Gateway, Ingress, VirtualServer or TransportServer, with its policies and configuration, and namespaces are grouped into one band per controller. Atlas places related cards together:
+  - each GatewayClass tile sits beside and slightly above its Gateways, even when they share a namespace with another controller's Gateways;
+  - a Service several routes share sits to their right, between them, and a route's own Service sits level with it;
+  - a namespace reached from another one sits next to the card that links to it, or under it when a straight line would cross other cards.
+- **Classic** answers *what does each namespace hold?* with the earlier namespace-tile layout.
 
 Large imports stay readable. When a column would hold more than eight namespaces, Atlas wraps it into a grid shaped like the window.
 
@@ -275,6 +292,10 @@ Large imports stay readable. When a column would hold more than eight namespaces
 - Ingress canaries and VirtualServer splits.
 
 ![One HTTPRoute with a 90% default, a query-matched experiment, a header-matched 10% canary and a mirrored shadow backend](../images/search-select.png)
+
+**AI inference.** An InferencePool is drawn like a Service: it sits in the Service column as its route's backend, and **Stop at Services** collapses the model servers it selects. A note on the pool card names its **Endpoint Picker** (EPP), whose Service sits beside the pool on a dashed *endpoint-picker* line. With **Stop at Services** off, Pods fold into their Deployment ("2 pods"), and workloads that the same pools select share one **Model servers** card, so each pool draws one line instead of one per workload. The card is a grouping, not a Kubernetes resource; select it to see its members.
+
+![Four InferencePools over shared llm-d simulator model servers, each with its own Endpoint Picker](../images/model-servers.png)
 
 **Policy pills.** When more than two policies or filters attach to one resource, they collapse into **pills** above the card. Click the **+N** pill to see them all. Route policies sit in a lane above their route.
 
@@ -335,7 +356,7 @@ Select any card or list entry to open the **inspector**. You can resize it, or c
   - **At a glance:** the key facts, such as hostnames, parent Gateways, rules, backends and status;
   - **Identity:** namespace, source document and API group;
   - **Relationships:** every link in and out, with the field that creates it, for example `spec.rules[0].backendRefs[0]`.
-- **Yaml:** the original YAML, with line numbers and folding. The large `kubectl.kubernetes.io/last-applied-configuration` annotation is folded for you. **Copy YAML** copies it; the expand button opens a larger view.
+- **Yaml:** the original YAML, with line numbers and folding. The bulky `metadata.managedFields` and `kubectl.kubernetes.io/last-applied-configuration` are folded for you. **Copy YAML** copies it; the expand button opens a larger view.
 - **Warnings:** this resource's findings, with the field, an explanation and the evidence.
 
 ![Inspector · Details for an HTTPRoute](../images/inspector-details.png)
@@ -355,6 +376,8 @@ Select any card or list entry to open the **inspector**. You can resize it, or c
 | **Note** | Context, or a limitation of a partial import. | A Service that is not in the files. A hostname shared by several routes, kinds or namespaces. The IngressLink that NGINX Gateway Fabric creates for you. |
 
 ![Diagnostics for Gateway API - Broken References](../images/diagnostics.png)
+
+After a live scan, or when you open a snapshot, **Diagnostics** also lists the **scan warnings**: resources Atlas could not read, for example because RBAC denied them. The view is then incomplete.
 
 Static analysis does not prove controller acceptance, endpoint readiness, DNS or reachability.
 
@@ -380,9 +403,11 @@ Every bundled example is synthetic and safe to share. A few that show what the C
 
 ![BIG-IP Next beside Envoy Gateway](../images/example-bigip-next.png)
 
-**Gateway API Inference Extension · Endpoint Picker and vLLM**, shown here in the light theme. InferencePools with Endpoint Pickers route model traffic to vLLM servers.
+**Gateway API Inference Extension · Endpoint Picker and vLLM**, shown here in the light theme. An NGINX Gateway Fabric Gateway routes model traffic by header to two InferencePools, each with its own Endpoint Picker, in front of vLLM servers. It uses only what NGINX Gateway Fabric documents for the Inference Extension: InferencePool backends.
 
 ![Inference Extension in the light theme](../images/light-theme-inference.png)
+
+**Gateway API Inference Extension - Shared Model Servers (llm-d simulator).** Istio and NGINX Gateway Fabric Gateways in one namespace, four InferencePools with their Endpoint Pickers, and llm-d simulator model servers they share; see the picture in [5.2](#52-reading-cards-and-lines).
 
 ## 10. Migration Playground
 
@@ -568,7 +593,7 @@ After the acknowledgement you can **Copy Generated YAML**, **Download Draft YAML
 
 ![Before: the source Ingress and its annotations. After: the drafted Gateway and HTTPRoute](../images/draft-files.png)
 
-**Compare topology** draws the source snapshot and the proposed draft side by side, on two Canvases. A connected graph does not prove equivalent behaviour or a healthy deployment.
+**Compare topology** draws the source snapshot and the proposed draft side by side, on two Canvases. Each opens on its whole topology, and **Open full screen** on either tile shows that side alone, with a switch to the other. A connected graph does not prove equivalent behaviour or a healthy deployment.
 
 ![Before and after topology](../images/draft-compare.png)
 
@@ -587,7 +612,7 @@ Open **Help → Explore Supported CRDs**, or select the floating **CRDs** button
    - NGINX Gateway Fabric 2.8.0;
    - NGINX Ingress Controller 5.7.0;
    - F5 WAF for NGINX, including Policy Lifecycle Management;
-   - the Inference Extension;
+   - the Inference Extension (InferencePool);
    - F5 CIS and F5 IPAM;
    - common prerequisites such as cert-manager.
 2. **Version:** the storage version is preselected; deprecated versions are marked.
@@ -611,7 +636,7 @@ The catalog schemas are bundled with Atlas, so this works offline. F5 BIG-IP Clo
   - **Explore Supported CRDs**;
   - **About**, which shows the release and the CRD and API versions Atlas knows.
 - **Theme:** the sun/moon button switches between light and dark.
-- **Recent sources:** reloads an example, file set, URL or scan you used in this browser.
+- **Recent sources:** reloads an example, file set or URL you used in this browser. Imports over 2 MiB, such as large snapshots, are not kept; import the file again.
 
 ![The Help menu](../images/help-menu.png)
 
@@ -620,7 +645,7 @@ The catalog schemas are bundled with Atlas, so this works offline. F5 BIG-IP Clo
 The same binary has a command-line interface. With the container, mount your files read-only:
 
 ```bash
-docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas:2.3.0 validate /work/examples/missing-service.yaml
+docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas:latest validate /work/examples/missing-service.yaml
 ```
 
 | Command | Purpose |
@@ -639,7 +664,9 @@ docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas:2.3.0 valid
 | Symptom | What to do |
 | --- | --- |
 | The page does not load | Check that the container is running, and that the port in the URL matches the first number in `-p`. |
-| **Kubernetes cluster** is unavailable | Restart with `--enable-live` and a mounted kubeconfig ([section 4](#4-connect-to-a-live-cluster-read-only)). |
+| **Kubernetes cluster** is unavailable | Restart with `--enable-live` ([section 4](#4-connect-to-a-live-cluster-read-only)). Then mount a kubeconfig, or use **Load kubeconfig** in the dialog. |
+| The status bar counts scan warnings | Some resources could not be read, usually because of RBAC. **Diagnostics** lists them; grant `get, list, watch` on them, or accept a partial view. |
+| A snapshot will not import | Imports are limited to 32 MiB. Scan one namespace at a time for very large clusters. |
 | No contexts, or a kubeconfig error | The mounted folder must contain a regular, readable file named `config` at `/home/nonroot/.kube`. Recreate the container after changing the mount. |
 | "The cluster could not be reached" | Check network access and credentials. On Docker Desktop, point the copy at `kubernetes.docker.internal:6443` ([section 4.1](#41-prepare-a-kubeconfig-for-the-container)). On a provisioner whose API name comes from `/etc/hosts` or a local DNS server, use `--network host` ([section 4.4](#44-on-an-openshift-provisioner-docker-on-rhel)). |
 | Cloud cluster authentication fails | `exec` credential plugins are not in the image. Use a static token or certificate for a read-only service account. |
@@ -652,7 +679,11 @@ docker run --rm -v "$PWD:/work:ro" ghcr.io/tareqaminul/gateway-atlas:2.3.0 valid
 
 Atlas runs locally and sends your manifests nowhere.
 
-Before you share screenshots, reports, design records or exported YAML, review them for:
+Secret values (`data`, `stringData` and the copy kubectl keeps in an annotation) are removed from every import: live scans, files, pasted YAML and URLs.
+
+**Snapshots are confidential.** They hold what Atlas read from a cluster, including ConfigMap data, environment values, annotations, addresses and hostnames. Store them like other cluster exports.
+
+Before you share screenshots, reports, design records, snapshots or exported YAML, review them for:
 - private names and hosts;
 - IP addresses;
 - annotations;

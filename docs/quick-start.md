@@ -23,7 +23,7 @@ You do **not** need a cluster, an account or internet access after the image is 
 ## 2. Start Atlas
 
 ```bash
-docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080
+docker run --rm -p 127.0.0.1:8080:8080 ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 0.0.0.0:8080
 ```
 
 Open <http://127.0.0.1:8080>.
@@ -32,7 +32,7 @@ Open <http://127.0.0.1:8080>.
 
 > **Keep `127.0.0.1` in the `-p` option.** Atlas has no login, so publish it on your own machine only. To use another port, change the first number, for example `-p 127.0.0.1:9090:8080`, and open port 9090.
 
-`ghcr.io/tareqaminul/gateway-atlas:latest` always points at the newest release. Use a version tag such as `2.3.0` when you want a fixed, repeatable setup.
+`latest` always points at the newest release. Use a version tag such as `:2.3.1` instead when you want a fixed, repeatable setup.
 
 ## 3. A five-minute tour
 
@@ -50,7 +50,7 @@ Start with **Migration In-Progress**.
 
 The **Canvas** reads left to right:
 
-class → traffic entry (Gateway, Ingress, VirtualServer) → routes → Services
+class → traffic entry (Gateway, Ingress, VirtualServer, TransportServer) → routes → Services
 
 Namespaces are drawn as tiles. Edge labels tell you what the traffic does, for example `/api · 50%`.
 
@@ -135,10 +135,14 @@ Atlas reads a cluster through a kubeconfig on your machine. It never reads it fr
 3. Start Atlas with the folder mounted read-only:
 
    ```bash
-   docker run --rm -p 127.0.0.1:8080:8080 --mount type=bind,source="$HOME/.config/gateway-atlas",target=/home/nonroot/.kube,readonly ghcr.io/tareqaminul/gateway-atlas:2.3.0 serve --addr 0.0.0.0:8080 --enable-live
+   docker run --rm -p 127.0.0.1:8080:8080 --mount type=bind,source="$HOME/.config/gateway-atlas",target=/home/nonroot/.kube,readonly ghcr.io/tareqaminul/gateway-atlas:latest serve --addr 0.0.0.0:8080 --enable-live
    ```
 
 4. Choose **Import → Kubernetes cluster**, pick a **Context** and optionally a **Namespace**, and select **Scan read-only**.
+
+No kubeconfig mounted? Start with `--enable-live` only, and use **Load kubeconfig** in the same dialog: Atlas keeps it in memory until **Forget** or a restart.
+
+To keep what you scanned, select **Save snapshot** in the Canvas toolbar. It saves a YAML file you can import later to look at the cluster offline. Treat it as confidential: Secret values are removed, but ConfigMap data and hostnames remain.
 
 ![Import from cluster: choose a context and a namespace, then scan read-only](../images/live-cluster.png)
 
@@ -170,7 +174,7 @@ Try the synthetic files in this repository's [examples](../examples/) folder.
 | NGINX Ingress Controller Ingresses and CRDs | **NGINX Ingress Controller with Ingresses** / **with CRDs** |
 | NGF policies as pills | **NGF · rate, body, proxy, upstream, access & tracing** |
 | F5 WAF for NGINX with Policy Lifecycle Management | **NGF · WAF (Policy Source Type - PLM)** |
-| AI traffic | **Gateway API Inference Extension · Endpoint Picker and vLLM** and **NGF · AI Guardrails Integration** |
+| AI traffic | **Gateway API Inference Extension · Endpoint Picker and vLLM**, **Gateway API Inference Extension - Shared Model Servers (llm-d simulator)** and **NGF · AI Guardrails Integration** |
 | BIG-IP in front of NGF | **NGF · External LB Integration (BIG-IP CIS, IPAM, GatewayLink)** |
 | A migration to plan | **Playground · retail platform (real-world case)** or any other **Playground ·** example |
 | BIG-IP Next for Kubernetes | **BIG-IP Next · BNK beside Envoy (data-plane comparison)** |
